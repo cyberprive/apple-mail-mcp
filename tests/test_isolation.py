@@ -19,15 +19,24 @@ REAL_ATTACHMENTS = Path.home() / "Downloads" / "apple-mail-mcp"
 TEMP = Path(tempfile.gettempdir()).resolve()
 
 
-def _log_files():
+def _file_handlers():
     logger = logging.getLogger("apple_mail_mcp")
-    return [Path(h.baseFilename).resolve() for h in logger.handlers
-            if isinstance(h, logging.FileHandler)]
+    return [h for h in logger.handlers if isinstance(h, logging.FileHandler)]
+
+
+def _set_up_by_the_server(handlers):
+    # Newer pytest (seen in 9.2.0, not in 9.0.3) also attaches its own
+    # log-capture FileHandler — to /dev/null unless --log-file is set — to
+    # non-propagating loggers like this one while tests run. That is pytest's
+    # capture, not a place the server writes to, so it is left out here. The
+    # real-log check below still covers every handler, pytest's included.
+    return [h for h in handlers if not type(h).__module__.startswith("_pytest")]
 
 
 def test_log_lands_in_a_temp_folder_not_the_real_log():
-    files = _log_files()
-    assert REAL_LOG.resolve() not in files
+    handlers = _file_handlers()
+    assert REAL_LOG.resolve() not in [Path(h.baseFilename).resolve() for h in handlers]
+    files = [Path(h.baseFilename).resolve() for h in _set_up_by_the_server(handlers)]
     assert files == [SETTINGS.log_path.resolve()]
     assert files[0].is_relative_to(TEMP), files[0]
 
