@@ -16,8 +16,9 @@ classifiers = [
     "Topic :: Communications :: Email",
 ]
 dependencies = [
-    # >=1.9: FastMCP tool annotations (absent in 1.6). <2: mcp 2.x renamed FastMCP.
-    "mcp>=1.9,<2",
+    # mcp 2.x API (MCPServer). Tested on 2.0.0 through 2.3.0.
+    # <3: the 1->2 major renamed FastMCP and broke fresh installs; review majors first.
+    "mcp>=2.0,<3",
 ]
 
 [project.optional-dependencies]

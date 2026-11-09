@@ -12,7 +12,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 
 from . import __version__
@@ -25,14 +25,16 @@ from .paths import resolve_target_dir
 setup_logging()
 logger = logging.getLogger("apple_mail_mcp.server")
 
-mcp = FastMCP("apple-mail-mcp")
+# Without `version`, mcp 2.x reports an empty serverInfo.version.
+mcp = MCPServer("apple-mail-mcp", version=__version__)
 
 # MCP tool annotations. Clients can use these to decide what to ask the user
 # about. They are hints, not enforcement: see "Safety" in the README.
-READ_ONLY = ToolAnnotations(readOnlyHint=True)
-SETS_STATE = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)
-CREATES = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False)
-DESTRUCTIVE = ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=False)
+# mcp 2.x spells the fields in snake_case; they still go out as readOnlyHint etc.
+READ_ONLY = ToolAnnotations(read_only_hint=True)
+SETS_STATE = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True)
+CREATES = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=False)
+DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=False)
 
 
 def _safe_call(tool: str, script: str, args: list[str] | None = None) -> dict:
@@ -493,7 +495,7 @@ def save_all_attachments(
 
 def main() -> None:
     logger.info("server_start", extra={"version": __version__})
-    mcp.run()
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

@@ -21,11 +21,6 @@ import pytest
 from apple_mail_mcp import server
 from apple_mail_mcp.applescript import SCRIPTS_DIR
 
-
-def _fn(tool):
-    return tool.fn if hasattr(tool, "fn") else tool
-
-
 @pytest.fixture
 def root(tmp_path, monkeypatch):
     """Point the server at a temporary attachments folder."""
@@ -52,7 +47,7 @@ ESCAPES = [
 @pytest.mark.parametrize("target_dir", ESCAPES)
 def test_save_attachment_refuses_target_dir_outside_root(root, target_dir):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=1, target_dir=target_dir)
+        out = server.save_attachment("a", "INBOX", "1", index=1, target_dir=target_dir)
     assert out["ok"] is False
     assert out["error"]["code"] == "INVALID_ARGUMENT"
     mock.assert_not_called()
@@ -61,7 +56,7 @@ def test_save_attachment_refuses_target_dir_outside_root(root, target_dir):
 @pytest.mark.parametrize("target_dir", ESCAPES)
 def test_save_all_attachments_refuses_target_dir_outside_root(root, target_dir):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_all_attachments)("a", "INBOX", "1", target_dir=target_dir)
+        out = server.save_all_attachments("a", "INBOX", "1", target_dir=target_dir)
     assert out["ok"] is False
     assert out["error"]["code"] == "INVALID_ARGUMENT"
     mock.assert_not_called()
@@ -70,7 +65,7 @@ def test_save_all_attachments_refuses_target_dir_outside_root(root, target_dir):
 def test_absolute_path_spelled_through_root_with_dotdot_is_refused(root):
     sneaky = str(root / ".." / "escape")
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=1, target_dir=sneaky)
+        out = server.save_attachment("a", "INBOX", "1", index=1, target_dir=sneaky)
     assert out["error"]["code"] == "INVALID_ARGUMENT"
     mock.assert_not_called()
     assert not (root.parent / "escape").exists()
@@ -82,7 +77,7 @@ def test_symlink_inside_root_pointing_outside_is_refused(root, tmp_path):
     root.mkdir()
     os.symlink(outside, root / "link")
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=1, target_dir="link/sub")
+        out = server.save_attachment("a", "INBOX", "1", index=1, target_dir="link/sub")
     assert out["error"]["code"] == "INVALID_ARGUMENT"
     mock.assert_not_called()
     assert not (outside / "sub").exists(), "refusal must not create directories outside root"
@@ -90,7 +85,7 @@ def test_symlink_inside_root_pointing_outside_is_refused(root, tmp_path):
 
 def test_null_byte_in_target_dir_is_invalid_argument(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=1, target_dir="x\x00y")
+        out = server.save_attachment("a", "INBOX", "1", index=1, target_dir="x\x00y")
     assert out["error"]["code"] == "INVALID_ARGUMENT"
     mock.assert_not_called()
 
@@ -100,7 +95,7 @@ def test_null_byte_in_target_dir_is_invalid_argument(root):
 def test_default_target_dir_is_the_root(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
         mock.return_value = {"saved_path": "x"}
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=1)
+        out = server.save_attachment("a", "INBOX", "1", index=1)
     assert out["ok"] is True
     assert _payload(mock)["target_dir"] == os.path.realpath(root)
     assert root.is_dir()
@@ -109,7 +104,7 @@ def test_default_target_dir_is_the_root(root):
 def test_relative_target_dir_lands_under_root(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
         mock.return_value = {"saved": [], "skipped": []}
-        _fn(server.save_all_attachments)("a", "INBOX", "1", target_dir="invoices/2026")
+        server.save_all_attachments("a", "INBOX", "1", target_dir="invoices/2026")
     landed = _payload(mock)["target_dir"]
     assert landed == os.path.realpath(root / "invoices" / "2026")
     assert os.path.isdir(landed)
@@ -119,7 +114,7 @@ def test_absolute_target_dir_inside_root_is_accepted(root):
     inside = root / "deep" / "er"
     with patch("apple_mail_mcp.server.run_script_json") as mock:
         mock.return_value = {"saved_path": "x"}
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=3, target_dir=str(inside))
+        out = server.save_attachment("a", "INBOX", "1", index=3, target_dir=str(inside))
     assert out["ok"] is True
     payload = _payload(mock)
     assert payload["target_dir"] == os.path.realpath(inside)
@@ -131,7 +126,7 @@ def test_absolute_target_dir_inside_root_is_accepted(root):
 
 def test_overwrite_without_confirm_is_refused(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_attachment)("a", "INBOX", "1", index=1, overwrite=True)
+        out = server.save_attachment("a", "INBOX", "1", index=1, overwrite=True)
     assert out["error"]["code"] == "CONFIRM_REQUIRED"
     assert out["error"]["details"]["target_dir"] == os.path.realpath(root)
     mock.assert_not_called()
@@ -139,14 +134,14 @@ def test_overwrite_without_confirm_is_refused(root):
 
 def test_save_all_overwrite_without_confirm_is_refused(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_all_attachments)("a", "INBOX", "1", overwrite=True)
+        out = server.save_all_attachments("a", "INBOX", "1", overwrite=True)
     assert out["error"]["code"] == "CONFIRM_REQUIRED"
     mock.assert_not_called()
 
 
 def test_overwrite_refusal_still_checks_the_path_first(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
-        out = _fn(server.save_attachment)(
+        out = server.save_attachment(
             "a", "INBOX", "1", index=1, target_dir="/tmp/evil", overwrite=True
         )
     assert out["error"]["code"] == "INVALID_ARGUMENT"
@@ -156,7 +151,7 @@ def test_overwrite_refusal_still_checks_the_path_first(root):
 def test_overwrite_with_confirm_proceeds(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
         mock.return_value = {"saved_path": "x"}
-        out = _fn(server.save_attachment)(
+        out = server.save_attachment(
             "a", "INBOX", "1", index=1, overwrite=True, confirm=True
         )
     assert out["ok"] is True
@@ -166,7 +161,7 @@ def test_overwrite_with_confirm_proceeds(root):
 def test_no_overwrite_by_default(root):
     with patch("apple_mail_mcp.server.run_script_json") as mock:
         mock.return_value = {"saved": [], "skipped": []}
-        _fn(server.save_all_attachments)("a", "INBOX", "1")
+        server.save_all_attachments("a", "INBOX", "1")
     assert _payload(mock)["overwrite"] is False
     assert _payload(mock)["index"] is None
 
